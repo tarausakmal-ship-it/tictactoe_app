@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a2036">
+<title>Tic Tac Toe</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; font-family:'Segoe UI',system-ui,sans-serif; background:#1a2036; color:#e8ecf7;
+    display:flex; align-items:center; justify-content:center; touch-action:manipulation; user-select:none; }
+  .app { width:100%; max-width:420px; padding:16px; text-align:center; }
+  h1 { font-size:1.9rem; letter-spacing:2px; margin-bottom:4px;
+    background:linear-gradient(90deg,#58a6ff,#ff9f43); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .subtitle { font-size:.8rem; color:#8b93ad; margin-bottom:14px; }
+
+  .modes { display:flex; gap:8px; margin-bottom:12px; }
+  .modes button { flex:1; padding:10px; border:none; border-radius:12px; font-size:.85rem; font-weight:600;
+    background:#252c48; color:#8b93ad; cursor:pointer; transition:all .2s; }
+  .modes button.active { background:#58a6ff; color:#0d1220; }
+  .diff { display:none; gap:8px; margin-bottom:12px; }
+  .diff.show { display:flex; }
+  .diff button { flex:1; padding:8px; border:none; border-radius:12px; font-size:.8rem; font-weight:600;
+    background:#252c48; color:#8b93ad; cursor:pointer; transition:all .2s; }
+  .diff button.active { background:#ff9f43; color:#0d1220; }
+
+  .scores { display:flex; gap:8px; margin-bottom:12px; }
+  .score { flex:1; background:#252c48; border-radius:12px; padding:10px; }
+  .score .label { font-size:.7rem; color:#8b93ad; text-transform:uppercase; letter-spacing:1px; }
+  .score .value { font-size:1.4rem; font-weight:700; }
+  .score.p1 .value { color:#58a6ff; } .score.p2 .value { color:#ff9f43; } .score.draw .value { color:#8b93ad; }
+
+  .status { min-height:28px; font-size:1rem; font-weight:600; margin-bottom:10px; color:#c3cbe2; }
+  .status { color:#c3cbe2; }
+
+  .board { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%; aspect-ratio:1; margin:0 auto; }
+  .cell { background:#252c48; border:none; border-radius:16px; font-size:clamp(2.4rem,18vw,4rem); font-weight:800;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; transition:transform .12s, background .2s; }
+  .cell:active { transform:scale(.94); }
+  .cell.x { color:#58a6ff; text-shadow:0 0 18px rgba(88,166,255,.5); }
+  .cell.o { color:#ff9f43; text-shadow:0 0 18px rgba(255,159,67,.5); }
+  .cell.win { background:#31427a; animation:pop .5s ease infinite alternate; }
+  @keyframes pop { from{transform:scale(1);} to{transform:scale(1.06);} }
+
+  .actions { display:flex; gap:8px; margin-top:14px; }
+  .actions button { flex:1; padding:12px; border:none; border-radius:12px; font-size:.9rem; font-weight:700;
+    background:#31427a; color:#e8ecf7; cursor:pointer; transition:all .2s; }
+  .actions button:active { transform:scale(.96); }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>TIC TAC TOE</h1>
+  <div class="subtitle">Classic game with a modern twist</div>
+
+  <div class="modes">
+    <button id="mFriend" class="active">2 Players</button>
+    <button id="mAI">Vs Computer</button>
+  </div>
+  <div class="diff" id="diffRow">
+    <button data-d="easy">Easy</button>
+    <button data-d="medium" class="active">Medium</button>
+    <button data-d="hard">Hard</button>
+  </div>
+
+  <div class="scores">
+    <div class="score p1"><div class="label" id="l1">Player X</div><div class="value" id="sX">0</div></div>
+    <div class="score draw"><div class="label">Draws</div><div class="value" id="sD">0</div></div>
+    <div class="score p2"><div class="label" id="l2">Player O</div><div class="value" id="sO">0</div></div>
+  </div>
+
+  <div class="status" id="status">X's turn</div>
+  <div class="board" id="board"></div>
+
+  <div class="actions">
+    <button id="btnReset">Reset Game</button>
+    <button id="btnScores">Reset Scores</button>
+  </div>
+</div>
+
+<script>
+const WIN = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let board, current, playing, vsAI=false, difficulty='medium';
+let scores = {X:0, O:0, D:0};
+const $ = id => document.getElementById(id);
+const boardEl = $('board');
+
+function init(){
+  board = Array(9).fill('');
+  current = 'X'; playing = true;
+  boardEl.innerHTML = '';
+  for(let i=0;i<9;i++){
+    const c = document.createElement('button');
+    c.className='cell'; c.dataset.i=i;
+    c.addEventListener('click', ()=>tap(i));
+    boardEl.appendChild(c);
+  }
+  updateStatus();
+}
+function updateStatus(msg){
+  $('status').textContent = msg || (vsAI && current==='O' ? "Computer is thinking..." : `${current==='X'?'X':'O'}'s turn`);
+}
+function tap(i){
+  if(!playing || board[i]) return;
+  if(vsAI && current==='O') return;
+  place(i);
+  if(playing && vsAI) setTimeout(aiMove, 350);
+}
+function place(i){
+  board[i]=current;
+  const cell = boardEl.children[i];
+  cell.textContent=current; cell.classList.add(current.toLowerCase());
+  const w = winner(board);
+  if(w){ endGame(w); return; }
+  if(!board.includes('')){ endGame(null); return; }
+  current = current==='X'?'O':'X';
+  updateStatus();
+}
+function endGame(w){
+  playing=false;
+  boardEl.querySelectorAll('.cell').forEach((c,i)=>{ c.style.pointerEvents='none'; });
+  if(w===null){ scores.D++; $('sD').textContent=scores.D; updateStatus("It's a draw!"); }
+  else {
+    w.line.forEach(i=>boardEl.children[i].classList.add('win'));
+    scores[w.p]++; (w.p==='X'?$('sX'):$('sO')).textContent=scores[w.p];
+    updateStatus(`${w.p==='X' && vsAI?'You':w.p==='O'&&vsAI?'Computer':w.p} wins!`);
+  }
+  setTimeout(init, 1600);
+}
+function winner(b){
+  for(const line of WIN){
+    const [a,b2,c]=line;
+    if(b[a] && b[a]===b[b2] && b[a]===b[c]) return {p:b[a], line};
+  }
+  return null;
+}
+function aiMove(){
+  if(!playing) return;
+  let i;
+  if(difficulty==='easy'){ i = emptyRandom(); }
+  else if(difficulty==='medium'){ i = Math.random()<0.5 ? bestMove() : emptyRandom(); }
+  else { i = bestMove(); }
+  if(i!==undefined && i!==null && !board[i]) place(i);
+}
+function emptyRandom(){
+  const e = board.map((v,i)=>v?null:i).filter(v=>v!==null);
+  return e[Math.floor(Math.random()*e.length)];
+}
+function bestMove(){
+  let best=-Infinity, move;
+  for(let i=0;i<9;i++){
+    if(!board[i]){
+      board[i]='O';
+      const s = minimax(board,0,false,-Infinity,Infinity);
+      board[i]='';
+      if(s>best){ best=s; move=i; }
+    }
+  }
+  return move;
+}
+function minimax(b, depth, isMax, alpha, beta){
+  const w = winner(b);
+  if(w) return w.p==='O'?10-depth:depth-10;
+  if(!b.includes('')) return 0;
+  if(isMax){
+    let best=-Infinity;
+    for(let i=0;i<9;i++) if(!b[i]){ b[i]='O'; best=Math.max(best,minimax(b,depth+1,false,alpha,beta)); b[i]=''; alpha=Math.max(alpha,best); if(beta<=alpha)break; }
+    return best;
+  } else {
+    let best=Infinity;
+    for(let i=0;i<9;i++) if(!b[i]){ b[i]='X'; best=Math.min(best,minimax(b,depth+1,true,alpha,beta)); b[i]=''; beta=Math.min(beta,best); if(beta<=alpha)break; }
+    return best;
+  }
+}
+
+$('mFriend').addEventListener('click',()=>{ vsAI=false; setMode(); });
+$('mAI').addEventListener('click',()=>{ vsAI=true; setMode(); });
+function setMode(){
+  $('mFriend').classList.toggle('active',!vsAI);
+  $('mAI').classList.toggle('active',vsAI);
+  $('diffRow').classList.toggle('show',vsAI);
+  $('l1').textContent = vsAI?'You (X)':'Player X';
+  $('l2').textContent = vsAI?'Computer (O)':'Player O';
+  init();
+}
+document.querySelectorAll('.diff button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.diff button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); difficulty=b.dataset.d; init();
+  });
+});
+$('btnReset').addEventListener('click',init);
+$('btnScores').addEventListener('click',()=>{ scores={X:0,O:0,D:0}; $('sX').textContent=0; $('sO').textContent=0; $('sD').textContent=0; init(); });
+
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+init();
+</script>
+</body>
+</html>
